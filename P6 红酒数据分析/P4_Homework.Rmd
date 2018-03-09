@@ -1,0 +1,483 @@
+---
+title: "P4作业——红酒质量探索与分析"
+author: "Liu Yufei"
+date: "2018年1月10日"
+output: html_document
+---
+ 
+
+# 数据来源
+
+数据为一份来自于至少3名葡萄酒专家对1599种红酒的品质评分，从0分（最差）到10分（最好）。数据文件同时给出了11种酒的化学成分变量的测量，包含了：非挥发性酸、挥发性酸、柠檬酸、剩余糖分、氯化物、游离二氧化硫、总二氧化硫、密度、PH值、硫酸盐、酒精。可以想象到的是，这些化学成分很大程度上决定了酒的品质。下面我们就对这些化学成分进行探索，并分析它们是如何影响酒的品质好坏的。
+
+各变量描述如下：
+
+|Ind| Components                             |
+|---|----------------------------------------|
+|1  |fixed acidity (tartaric acid - g / dm^3)|
+|2  |volatile acidity (acetic acid - g / dm^3|
+|3  |citric acid (g / dm^3)                  |
+|4  |residual sugar (g / dm^3)               |
+|5  |chlorides (sodium chloride - g / dm^3)  |
+|6  |free sulfur dioxide (mg / dm^3)         |
+|7  |total sulfur dioxide (mg / dm^3)        |
+|8  |density (g / cm^3)                      |
+|9  |pH                                      |
+|10 |sulphates (potassium sulphate - g / dm3)|
+|11 |alcohol (% by volume)                   |
+|12 ||11|alcohol (% by volume)               |
+
+    
+    
+# 单变量绘图
+## 数据集
+
+下面读取数据，然后对数据进行预览，首先是数据的维度：
+    
+```{r}
+library(ggplot2)
+
+wine <- read.csv('wineQualityReds.csv')
+dim(wine)   
+```
+
+然后是数据内容一览：
+
+```{r}
+str(wine)   
+```
+
+接着是数据各变量统计：
+
+```{r}
+summary(wine) 
+```
+
+可以看到，总共有1599条数据记录，分别对应1599种酒；包含13个变量：第一个为序号，中间11个为11种化学成分，最后为品质。
+
+
+## 单变量图形
+
+首先是酒的品质：
+    
+```{r}
+qplot(x = quality, data = wine, geom = 'histogram', binwidth = 0.5) 
+summary(wine$quality)
+```
+
+可以看到虽然品质分数取值范围可以从0分到10分，但是所选取的样本中最差为3分，最高为8分，而且相比之下5分、6分最多，低分和高分较少，整体分布更加近似于正态分布。
+    
+下面探索各化学成分，首先是三类酸性成分：
+    
+```{r}
+qplot(x = fixed.acidity, data = wine, geom = 'histogram', binwidth = 0.2)
+qplot(x = volatile.acidity, data = wine, geom = 'histogram', binwidth = 0.05)
+qplot(x = citric.acid, data = wine, geom = 'histogram', binwidth = 0.02)
+```
+
+```{r}
+summary(wine$fixed.acidity)
+summary(wine$volatile.acidity)
+summary(wine$citric.acid)
+```
+    
+三幅分布图中都有异常值，特别是柠檬酸有大量的0值！我们单独进行分析。
+    
+```{r}
+# check the data with citric acid = 0
+dim(subset(wine, wine$citric.acid == 0))
+summary(subset(wine, wine$citric.acid == 0))
+```
+
+可以看到，数据集中该字段为0的记录共有132条，占了1599条数据的8.3%，且其他字段对比查看完整数据的分布情况，并未发现明显异常，因此我认为0值是柠檬酸的正常取值。
+    
+三种酸类成分中，非挥发性酸和挥发性酸的分布略微呈现右偏性，而柠檬酸则无此特征，总体而言低含量较多，高含量较少。
+    
+```{r}
+qplot(x = residual.sugar, data = wine, geom = 'histogram', binwidth = 0.1)
+qplot(x = chlorides, data = wine, geom = 'histogram', binwidth = 0.005)
+```
+
+```{r}
+summary(wine$residual.sugar)
+summary(wine$chlorides)
+```
+    
+残留糖分也呈现出右偏趋势，出现频率最高的部分集中在0.15~0.25区域附近，向右出现长尾;同样的态势也出现在氯化物上面。
+    
+```{r}
+qplot(x = free.sulfur.dioxide, data = wine, geom = 'histogram', binwidth = 1)
+qplot(x = total.sulfur.dioxide, data = wine, geom = 'histogram', binwidth = 3)
+```
+
+```{r}
+summary(wine$free.sulfur.dioxide)
+summary(wine$total.sulfur.dioxide)
+```
+
+两类硫化物分布近似，都是明显的右偏，游离二氧化硫含量比总二氧化硫含量更低。同时注意到最大值与最小值的差距非常之大，说明应该是有异常值存在。两类硫化物从名称上看似乎是一种包含关系，[这个帖子](http://wenwen.sogou.com/z/q751863621.htm)证明了该想法。
+    
+```{r}
+qplot(x = density, data = wine, geom = 'histogram', binwidth = 0.0005)
+qplot(x = pH, data = wine, geom = 'histogram', binwidth = 0.05)
+qplot(x = sulphates, data = wine, geom = 'histogram', binwidth = 0.02)
+qplot(x = alcohol	, data = wine, geom = 'histogram', binwidth = 0.2)
+```
+
+```{r}
+summary(wine$density)
+summary(wine$pH)
+summary(wine$sulphates)
+summary(wine$alcohol)
+```
+
+这几组数据组内相互差异比之前几组数据小了很多。密度和质量看起来基本符合正态分布，这比较符合设想；而硫酸盐和酒精呈现右偏分布。
+    
+上述分析中有多个成分的分布呈现偏态特征，该类分布向右侧延伸的长尾中可能会隐藏部分有用信息。我们单独对各变量取对数后重画分布图，看看能否发掘更多信息。
+    
+```{r}
+# histograms of different variables
+qplot(x = fixed.acidity, data = wine, geom = 'histogram', binwidth = 0.01, log = 'x')
+qplot(x = volatile.acidity, data = wine, geom = 'histogram', binwidth = 0.01, log = 'x')
+qplot(x = residual.sugar, data = wine, geom = 'histogram', binwidth = 0.02, log = 'x')
+qplot(x = chlorides, data = wine, geom = 'histogram', binwidth = 0.01, log = 'x')
+qplot(x = free.sulfur.dioxide, data = wine, geom = 'histogram', binwidth = 0.05, log = 'x')
+qplot(x = total.sulfur.dioxide, data = wine, geom = 'histogram', binwidth = 0.03, log = 'x')
+qplot(x = sulphates, data = wine, geom = 'histogram', binwidth = 0.02, log = 'x')
+qplot(x = alcohol	, data = wine, geom = 'histogram', binwidth = 0.005, log = 'x')
+
+
+
+```
+
+似乎没有什么特别发现~囧。
+    
+    
+# 单变量分析
+## 数据集的结构
+
+数据包含了1599条数据，每条数据对应一种红酒，每种红酒包含11种测定的化学成分（非挥发性酸、挥发性酸、柠檬酸、剩余糖分、氯化物、游离二氧化硫、总二氧化硫、密度、PH值、硫酸盐、酒精）、1种人为评定的酒的品质分数，该分数从0分（最差）到10分（最佳）。其他观察结果包括：
+    1）品质分数、密度、PH值三个变量基本呈现正态分布规律，其余变量多少都呈现出偏态分布规律；
+    2）品质分数出现次数最多的集中在5分和6分，没有低于3分和高于8分的记录；
+    3）部分变量数值范围较大，发现有包含异常值的情况。
+
+
+## 数据集中感兴趣的主要特征
+
+最感兴趣的特征是品质分数，我想了解该变量与其他变量的关系，即各种化学成分如何影响酒的品质。
+
+
+## 数据集内其他哪些特征可以帮助探索兴趣点
+
+由于分布显示出正态分布特性，个人预计密度、PH值对品质可能没有直接影响，品质评分更多与剩下的变量如非挥发性酸、挥发性酸、柠檬酸、剩余糖分、氯化物、游离二氧化硫、总二氧化硫、硫酸盐、酒精相关。
+
+
+## 是否创建新变量
+
+根据[PH值的定义](http://baike.sogou.com/v506640.htm?fromTitle=PH%E5%80%BC)，将PH值转换为H+离子浓度，公式为：PH=－log10[H+]，[H+]=10^(-PH)，其中[H+]为氢离子浓度，单位mol/L。
+    
+```{r}
+# unit : mol/L
+wine$H.concentration <- 10^(-wine$pH)
+```
+
+由于呈现酸性的PH值与成分中酸性物质的含量相关，故将成分中三种酸性物质：非挥发性酸、挥发性酸、柠檬酸转化为各自物质含量。根据[B格小文](http://blog.sina.com.cn/s/blog_8cad55d90102xo10.html)所描述，非挥发性酸中主要包含酒石酸、苹果酸（此处假设都是酒石酸），挥发性酸主要包含醋酸，因此根据:[酒石酸](http://baike.sogou.com/v261917.htm?fromTitle=%E9%85%92%E7%9F%B3%E9%85%B8)、[醋酸](http://baike.sogou.com/v1192371.htm?fromTitle=%E9%86%8B%E9%85%B8)、[柠檬酸](http://baike.sogou.com/v256007.htm?fromTitle=%E6%AA%B8%E6%AA%AC%E9%85%B8)所给出的分子式，得到：
+    酒石酸C4H6O6，分子量150；
+    醋酸CH3COOH，分子量60；
+    柠檬酸C6H8O7，分子量192。
+    
+折算出各酸性成分含量转换公式：含量[mol/L] = 浓度[g/cm^3] * 1000[cm^3/L] / 分子量[g/mol]，依据该公式得到三种酸的物质含量。 
+
+```{r}
+# transform units of variables, following variables unit: mol/L
+wine$f.acid.amount <- wine$fixed.acidity * 1000 /150    
+wine$v.acid.amount <- wine$volatile.acidity * 1000 / 60
+wine$c.acid.amount <- wine$citric.acid * 1000 / 192
+str(wine)
+```
+
+## 是否存在异常分布，是否对数据进行整理，为什么
+
+前面章节发现，柠檬酸含量中出现大量0值，但是对这些数据进行查看并未发现异常，故全部保留。
+通过各变量的分布图，下列变量疑似存在偏大的异常值：柠檬酸、残留糖分、氯化物、游离二氧化硫、总二氧化硫、硫酸盐。通过限制分位数99%将异常值去掉。
+    
+```{r}
+
+# restrict data by quantile values of 99% 
+tidy.wine <- subset(wine, (wine$citric.acid < quantile(wine$citric.acid, 0.99)))
+tidy.wine <- subset(tidy.wine, (tidy.wine$residual.sugar < quantile(tidy.wine$residual.suga, 0.99)))
+tidy.wine <- subset(tidy.wine, (tidy.wine$chlorides < quantile(tidy.wine$chlorides, 0.99 )))
+tidy.wine <- subset(tidy.wine, (tidy.wine$free.sulfur.dioxide < quantile(tidy.wine$free.sulfur.dioxide, 0.99 )))
+tidy.wine <- subset(tidy.wine, (tidy.wine$total.sulfur.dioxide < quantile(tidy.wine$total.sulfur.dioxide, 0.99 )))
+tidy.wine <- subset(tidy.wine, (tidy.wine$sulphates < quantile(tidy.wine$sulphates, 0.99 )))
+
+# summary(wine)
+summary(tidy.wine)
+
+```
+
+与原始数据wine的统计对比，可以看到各变量中偏大的异常值已经消除。
+    
+原数据中X列只表示序号，R中无需保留此列；同时已经新生成了三种酸的物质含量和氢离子的浓度，原来的变量可以消除：
+    
+```{r}
+# delete redundant variables
+tidy.wine <- subset(tidy.wine, select = c(-X, -fixed.acidity, -volatile.acidity, -citric.acid, -pH))
+str(tidy.wine)
+```
+
+到此，数据已整理完成。
+
+
+# 双变量绘图
+
+对数据全部变量画出相互之间的关系图：
+
+```{r fig.width=15, fig.height=15}
+# plot correlations of all the variables
+library(GGally)
+
+ggpairs(tidy.wine, upper = list(continuous = wrap('cor', size = 5))) + 
+  ggtitle('Correlations of Variables')
+
+```
+
+可以看到，部分变量间存在着一定线性关系，不过总体说来多数变量之间关系并不明显，这与之前的分析相符。
+
+    
+##  游离二氧化硫与总二氧化硫之间的关系
+    
+```{r}
+ggplot(data = tidy.wine, mapping = aes(x = free.sulfur.dioxide, y = total.sulfur.dioxide)) + 
+        geom_point(alpha = 0.5, color = 'red') +
+        geom_smooth(method = 'lm')
+
+cor.test(x = tidy.wine$free.sulfur.dioxide, y = tidy.wine$total.sulfur.dioxide)
+
+```
+
+从线性分析结果可以看到：P值2.2e-16，远小于显著水平0.05、0.01，故线性回归效果显著。
+    
+##  密度与哪些变量相关
+    
+```{r}
+# density vs residual.sugar/alcohol/f.acid.amount
+ggplot(data = tidy.wine, mapping = aes(x = density, y = residual.sugar)) + 
+        geom_point(alpha = 0.5, color = 'red') + 
+        geom_smooth(method = 'lm') 
+
+ggplot(data = tidy.wine, mapping = aes(x = density, y = alcohol)) + 
+        geom_point(alpha = 0.5, color = 'orange') +
+        geom_smooth(method = 'lm')
+
+ggplot(data = tidy.wine, mapping = aes(x = density, y = f.acid.amount)) + 
+        geom_point(alpha = 0.5, color = 'green') +
+        geom_smooth(method = 'lm')
+
+cor.test(x = tidy.wine$density, y = tidy.wine$residual.sugar)
+cor.test(x = tidy.wine$density, y = tidy.wine$alcohol)
+cor.test(x = tidy.wine$density, y = tidy.wine$f.acid.amount)
+
+
+```
+
+上面三组变量分析看到，P值都小于显著水平，回归效果较为明显，但是相比之下密度和挥发性酸的线性拟合汇聚程度更高。
+    
+##  品质与硫酸盐、酒精含量、挥发性酸的关系
+
+由于品质分数为离散值，这里按照各个变量相对品质分数做箱线图，首先需要将它转换成factor型。
+    
+```{r}
+# transform 'quality' from type of int into type of factor
+ggplot(data = tidy.wine, mapping = aes(x = factor(quality), y = sulphates)) + 
+        geom_boxplot(alpha = 0.5, color = 'red')
+
+ggplot(data = tidy.wine, mapping = aes(x = factor(quality), y = alcohol)) + 
+        geom_boxplot(alpha = 0.5, color = 'green')
+
+ggplot(data = tidy.wine, mapping = aes(x = factor(quality), y = v.acid.amount)) + 
+        geom_boxplot(alpha = 0.5, color = 'orange')
+
+
+```
+
+可以看到，从中位数来看，三幅图的总趋势是随着品质的提高，硫酸盐、酒精含量趋向于上升，挥发性算含量趋于下降，说明品质与这三种成分的含量有关。
+    
+##  氢离子与密度、非挥发性酸、柠檬酸、挥发性酸的关系
+
+```{r}
+# H.concentration vs density/f.acid.amount/c.acid.amount/v.acid.amount
+ggplot(data = tidy.wine, mapping = aes(x = H.concentration, y = density)) + 
+        geom_point(alpha = 0.5, color = 'red') +
+        geom_smooth(method = 'lm')
+
+ggplot(data = tidy.wine, mapping = aes(x = H.concentration, y = f.acid.amount)) + 
+        geom_point(alpha = 0.5, color = 'orange') +
+        geom_smooth(method = 'lm')
+
+ggplot(data = tidy.wine, mapping = aes(x = H.concentration, y = c.acid.amount)) + 
+        geom_point(alpha = 0.5, color = 'green') +
+        geom_smooth(method = 'lm')
+
+ggplot(data = tidy.wine, mapping = aes(x = H.concentration, y = v.acid.amount)) + 
+        geom_point(alpha = 0.5, color = 'blue') +
+        geom_smooth(method = 'lm')
+
+cor.test(x = tidy.wine$H.concentration, y = tidy.wine$density)
+cor.test(x = tidy.wine$H.concentration, y = tidy.wine$f.acid.amount)
+cor.test(x = tidy.wine$H.concentration, y = tidy.wine$c.acid.amount)
+cor.test(x = tidy.wine$H.concentration, y = tidy.wine$v.acid.amount)
+```
+
+可以看到，氢离子浓度与这几种变量都存在着内在关系。其中氢离子与挥发性酸浓度之间的关系，是目前为止两变量间最显著的关系。
+
+
+# 双变量分析
+## 探索中观察到的一些关系，这些特性与其他特性有何区别
+
+游离二氧化硫与总二氧化硫呈现较强的线性相关性（0.672237671），之前我们根据名字猜测两者是包含关系，测试结果符合我们之前的预期。
+    
+密度与多个成分都有较为明显的关系，大部分是正相关，与酒精呈现负相关。通过上网查询发现，酒精密度0.789g/cm^3，低于所有酒类样本的密度值（最小值0.9915g/cm^3），这就很好地解释了为什么酒精含量越多，样品密度越小。我们还可以猜测到的是，另外与密度成正相关的成分，平均密度应该都大于酒类样本密度。
+    
+品质与硫酸盐、酒精含量存在比较明显正相关，与挥发性酸有负相关，查询后得知[大力猛击我](http://blog.sina.com.cn/s/blog_6715e4960100qmbr.html)，挥发性酸的味道正是葡萄酒中所谓“瑕疵”的来源。
+    
+氢离子与密度、非挥发性酸、柠檬酸呈现明显正相关，与挥发性酸更多呈现负相关，这与之前预计有一定出入。
+
+
+## 是否观察到主要特性于其他特性之间的有趣联系
+
+最大的“惊喜”来自于氢离子密度并非与三种酸类成分全部呈现正相关，与挥发性酸之间是负相关关系，这背后的原因也许需要更加专业的解释。
+
+
+## 最强的关系是什么
+
+最强相关来自于氢离子浓度与非挥发性酸，线性相关系数为0.7164。
+
+
+# 多变量绘图
+## 品质分数与主要相关成分之间的关系
+
+之前的研究已经发现，品质与硫酸盐和酒精含量有较强的正相关性，与挥发性算有明显的负相关性，下面我们对不同品质的样本各因素做一次探索。
+    
+```{r}
+# scatter plot of sulphates vs. alcohol from collections of different qualities
+ggplot(aes(x = sulphates, y = alcohol), data = tidy.wine) + 
+  geom_point(aes(color = factor(quality)), alpha = 0.5) +
+  scale_fill_brewer(palette = 'Reds') +
+  facet_wrap(~quality)
+```
+
+```{r}
+# get mean values from different quality collections
+summary(subset(tidy.wine, quality == 3))[4, c(8, 6, 7)]
+summary(subset(tidy.wine, quality == 4))[4, c(8, 6, 7)]
+summary(subset(tidy.wine, quality == 5))[4, c(8, 6, 7)]
+summary(subset(tidy.wine, quality == 6))[4, c(8, 6, 7)]
+summary(subset(tidy.wine, quality == 7))[4, c(8, 6, 7)]
+summary(subset(tidy.wine, quality == 8))[4, c(8, 6, 7)]
+
+```
+
+从上面分析大致可以分辨出：低级别的样本比较集中在左下角，即硫酸盐和酒精含量都较低的区域，高级别的酒相比之下更靠近右上角，即硫酸盐和酒精含量都较高的区域。
+
+
+```{r}
+ggplot(aes(x = sulphates, y = v.acid.amount), data = tidy.wine) + 
+  geom_point(aes(color = factor(quality)), alpha = 0.5) +
+  facet_wrap(~quality) +
+  ggtitle('Quality vs v.acid.amount and sulphates')
+```
+    
+
+```{r}
+ggplot(aes(x = alcohol, y = v.acid.amount), data = tidy.wine) + 
+  geom_point(aes(color = factor(quality)), alpha = 0.5) +
+  facet_wrap(~quality) +
+  ggtitle('Quality vs v.acid.amount and alcohol')
+```
+    
+同样的趋势在后两幅图也可以看出来：与酒精、硫酸盐正相关，与挥发性酸负相关。
+    
+    
+
+# 多变量分析
+## 观察到的关系，是否存在相互促进的特性
+
+通过数据分析了酒的品质与两个正相关成分（硫酸盐和酒精含量）之间的关系，发现较高品质分数的样本，这两类成分含量较高；较低品质的样本，这两类成分含量较低。
+
+## 是否有联系
+
+同上。
+
+
+## 是否有数据模型，优缺点（可选）
+
+将氢离子浓度建模为密度、非挥发性酸、挥发性酸、柠檬酸的线性模型进行分析。
+  
+```{r}
+library(memisc)
+# build models about H.concentration against 4 viariables
+
+model1 <- lm(H.concentration ~ density + 1, data = tidy.wine)
+model2 <- lm(H.concentration ~ density + f.acid.amount + 1, data = tidy.wine)
+model3 <- lm(H.concentration ~ density + f.acid.amount + c.acid.amount + 1, data = tidy.wine)
+model4 <- lm(H.concentration ~ density + f.acid.amount + c.acid.amount + v.acid.amount + 1, data = tidy.wine)
+
+summary(model1)
+summary(model2)
+summary(model3)
+summary(model4)
+
+```
+
+从模型结果来看，最好的情况下，R^2只能达到约0.55，说明还有潜在因素未被发掘，或者模型不太合适。
+
+
+# 最终成图与汇总
+
+## 酒的品质与主要相关变量的关系
+
+通过分析发现，品质与硫酸盐和酒精含量有较强的正相关性，与挥发性算有明显的负相关性。具体分布如下：
+
+```{r}
+ggplot(aes(x = sulphates, y = alcohol), data = tidy.wine) + 
+  geom_point(aes(color = factor(quality)), alpha = 0.5) +
+  facet_wrap(~quality) +
+  scale_color_brewer(palette  = "Blues") +
+  ggtitle('Quality vs Alcohol and sulphates') +
+  labs(x = 'sulphates(g/dm3)', 
+       y = 'alcohol(% by volume)')
+```
+
+
+```{r}
+ggplot(aes(x = sulphates, y = v.acid.amount), data = tidy.wine) + 
+  geom_point(aes(color = factor(quality)), alpha = 0.5) +
+  facet_wrap(~quality) +
+  scale_color_brewer(palette  = "Blues") +
+  ggtitle('Quality vs v.acid.amount and sulphates') +
+  labs(x = 'sulphates(g/dm3)', 
+       y = 'volatile acidity(g/dm^3)')
+```
+
+```{r}
+ggplot(aes(x = alcohol, y = v.acid.amount), data = tidy.wine) + 
+  geom_point(aes(color = factor(quality)), alpha = 0.5) +
+  facet_wrap(~quality) +
+  scale_color_brewer(palette  = "Blues") +
+  ggtitle('Quality vs v.acid.amount and alcohol') +
+  labs(x = 'alcohol(% by volume)', 
+       y = 'volatile acidity(g/dm^3)')
+```
+
+从三幅图中得到的结论是：随着酒的品质的提高，酒精含量和硫酸盐含量趋于上升，而挥发性酸含量趋于下降。
+
+
+# 反思
+
+从整个分析过程来看，成功之处在于：按照流程从简单到深入一步步走，还是得出来一些有用的结论；主要遇到的难点在于：由于并非食品或化学专业背景出身，这个数据集在我眼中变量之间的自然关联不够清晰，不能预先想好内在联系，然后引导分析工作的开展，只能走一步得出一个结论。比如针对氢离子含量分析一节中，本来预想的是氢离子浓度应该与各种酸含量呈现较强的正相关性，但是可能由于各化学成分之间复杂的关系，也许有相互抑制等等作用，使得模型出来的效果不佳，最重要的是，当前对于我而言似乎没有特别好的办法解决。
+
+我认为数据分析除了直接揭露数据明面上包含的关系之外，还应该能够帮助发现背后的规律，但是看来往往还需要很多背景知识的获取以及累积。
+
+后续要继续这个课题研究的话，希望能够深入探讨氢离子浓度的决定因素，通过更好的模型（不一定是线性模型），给出各因素更加精确的影响程度量化值：不同酸的正向影响程度应该可以反映电离程度的差异，而负的影响则可能表明相互抑制的作用。
+
